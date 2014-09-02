@@ -33,11 +33,15 @@ JNIEnv* getCallbackEnv();
 
 int register_com_android_bluetooth_hfp(JNIEnv* env);
 
+int register_com_android_bluetooth_hfpclient(JNIEnv* env);
+
 int register_com_android_bluetooth_a2dp(JNIEnv* env);
 
 int register_com_android_bluetooth_avrcp(JNIEnv* env);
 
 int register_com_android_bluetooth_hid(JNIEnv* env);
+
+int register_com_android_bluetooth_hidd(JNIEnv* env);
 
 int register_com_android_bluetooth_hdp(JNIEnv* env);
 
@@ -45,6 +49,7 @@ int register_com_android_bluetooth_pan(JNIEnv* env);
 
 int register_com_android_bluetooth_gatt (JNIEnv* env);
 
+int register_com_android_bluetooth_btservice_QAdapterService(JNIEnv* env);
 }
 
 #endif /* COM_ANDROID_BLUETOOTH_H */
