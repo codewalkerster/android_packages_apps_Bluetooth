@@ -64,8 +64,7 @@ import java.util.Locale;
 public class BluetoothOppLauncherActivity extends Activity {
     private static final String TAG = "BluetoothLauncherActivity";
     private static final boolean D = Constants.DEBUG;
-    private static final boolean V = Constants.VERBOSE;
-
+    private static final boolean V = Log.isLoggable(Constants.TAG, Log.VERBOSE) ? true : false;
     // Regex that matches characters that have special meaning in HTML. '<', '>', '&' and
     // multiple continuous spaces.
     private static final Pattern PLAIN_TEXT_TO_ESCAPE = Pattern.compile("[<>&]| {2,}|\r?\n");
@@ -75,7 +74,12 @@ public class BluetoothOppLauncherActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         Intent intent = getIntent();
-        String action = intent.getAction();
+        String action = (intent == null) ? null : intent.getAction();
+        if (action == null) {
+            Log.e(TAG, "Unexpected error! action is null");
+            finish();
+            return;
+        }
 
         if (action.equals(Intent.ACTION_SEND) || action.equals(Intent.ACTION_SEND_MULTIPLE)) {
             //Check if Bluetooth is available in the beginning instead of at the end
@@ -157,13 +161,15 @@ public class BluetoothOppLauncherActivity extends Activity {
                         public void run() {
                             BluetoothOppManager.getInstance(BluetoothOppLauncherActivity.this)
                                 .saveSendingFileInfo(mimeType,uris, false);
-                            //Done getting file info..Launch device picker
-                            //and finish this activity
-                            launchDevicePicker();
-                            finish();
+                            //Done getting file info
                         }
                     });
                     t.start();
+                    //Launch device picker after thread is started to avoid delay
+                    //caused by saving file information during multiple file share scenarios
+                    //which may cause ANR.
+                    launchDevicePicker();
+                    finish();
                     return;
                 } else {
                     Log.e(TAG, "type is null; or sending files URIs are null");
@@ -224,6 +230,11 @@ public class BluetoothOppLauncherActivity extends Activity {
                 Settings.System.AIRPLANE_MODE_ON, 0) == 1;
         if (!isAirplaneModeOn) {
             return true;
+        }
+
+        final boolean needsPrompt = getResources().getBoolean(R.bool.config_airplane_invalid);
+        if (needsPrompt) {
+            return false;
         }
 
         // Check if airplane mode matters

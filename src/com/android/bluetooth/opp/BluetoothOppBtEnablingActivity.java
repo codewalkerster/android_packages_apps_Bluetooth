@@ -57,7 +57,7 @@ public class BluetoothOppBtEnablingActivity extends AlertActivity {
 
     private static final boolean D = Constants.DEBUG;
 
-    private static final boolean V = Constants.VERBOSE;
+    private static final boolean V = Log.isLoggable(Constants.TAG, Log.VERBOSE) ? true : false;
 
     private static final int BT_ENABLING_TIMEOUT = 0;
 
@@ -67,6 +67,7 @@ public class BluetoothOppBtEnablingActivity extends AlertActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.Theme_Material_Settings_Floating);
         super.onCreate(savedInstanceState);
 
         // If BT is already enabled jus return.
@@ -82,7 +83,6 @@ public class BluetoothOppBtEnablingActivity extends AlertActivity {
 
         // Set up the "dialog"
         final AlertController.AlertParams p = mAlertParams;
-        p.mTitle = getString(R.string.enabling_progress_title);
         p.mView = createView();
         setupAlert();
 

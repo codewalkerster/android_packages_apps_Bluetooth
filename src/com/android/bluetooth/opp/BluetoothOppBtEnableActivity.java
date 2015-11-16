@@ -50,11 +50,18 @@ import com.android.internal.app.AlertController;
 public class BluetoothOppBtEnableActivity extends AlertActivity implements
         DialogInterface.OnClickListener {
 
+    private boolean mBtEnabled;
+
+    private BluetoothOppManager mOppManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.Theme_Material_Settings_Floating);
         super.onCreate(savedInstanceState);
 
         // Set up the "dialog"
+        mOppManager = BluetoothOppManager.getInstance(this);
+        mBtEnabled = false;
         final AlertController.AlertParams p = mAlertParams;
         p.mIconAttrId = android.R.attr.alertDialogIcon;
         p.mTitle = getString(R.string.bt_enable_title);
@@ -69,8 +76,7 @@ public class BluetoothOppBtEnableActivity extends AlertActivity implements
     private View createView() {
         View view = getLayoutInflater().inflate(R.layout.confirm_dialog, null);
         TextView contentView = (TextView)view.findViewById(R.id.content);
-        contentView.setText(getString(R.string.bt_enable_line1) + "\n\n"
-                + getString(R.string.bt_enable_line2) + "\n");
+        contentView.setText(getString(R.string.bt_enable_line2));
 
         return view;
     }
@@ -78,12 +84,9 @@ public class BluetoothOppBtEnableActivity extends AlertActivity implements
     public void onClick(DialogInterface dialog, int which) {
         switch (which) {
             case DialogInterface.BUTTON_POSITIVE:
-                BluetoothOppManager mOppManager = BluetoothOppManager.getInstance(this);
                 mOppManager.enableBluetooth(); // this is an asyn call
                 mOppManager.mSendingFlag = true;
-
-                Toast.makeText(this, getString(R.string.enabling_progress_content),
-                        Toast.LENGTH_SHORT).show();
+                mBtEnabled = true;
 
                 Intent in = new Intent(this, BluetoothOppBtEnablingActivity.class);
                 in.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -95,6 +98,15 @@ public class BluetoothOppBtEnableActivity extends AlertActivity implements
             case DialogInterface.BUTTON_NEGATIVE:
                 finish();
                 break;
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        if (!mBtEnabled) {
+            mOppManager.cleanUpSendingFileInfo();
         }
     }
 }

@@ -60,7 +60,7 @@ final class AdapterState extends StateMachine {
     static final int USER_TURN_OFF_DELAY_MS=500;
 
     //TODO: tune me
-    private static final int ENABLE_TIMEOUT_DELAY = 8000;
+    private static final int ENABLE_TIMEOUT_DELAY = 12000;
     private static final int DISABLE_TIMEOUT_DELAY = 8000;
     private static final int START_TIMEOUT_DELAY = 5000;
     private static final int STOP_TIMEOUT_DELAY = 5000;
@@ -330,8 +330,10 @@ final class AdapterState extends StateMachine {
                 case ENABLE_TIMEOUT:
                     if (DBG) Log.d(TAG,"CURRENT_STATE=PENDING, MESSAGE = ENABLE_TIMEOUT, isTurningOn=" + isTurningOn + ", isTurningOff=" + isTurningOff);
                     errorLog("Error enabling Bluetooth");
+                    adapterService.ssrcleanupNative(false);
                     mPendingCommandState.setTurningOn(false);
                     transitionTo(mOffState);
+                    adapterService.stopProfileServices();
                     notifyAdapterStateChange(BluetoothAdapter.STATE_OFF);
                     break;
                 case STOP_TIMEOUT:
@@ -339,13 +341,19 @@ final class AdapterState extends StateMachine {
                     errorLog("Error stopping Bluetooth profiles");
                     mPendingCommandState.setTurningOff(false);
                     transitionTo(mOffState);
+                    notifyAdapterStateChange(BluetoothAdapter.STATE_OFF);
+                    errorLog("STOP_TIMEOUT:Killing the process to force a restart as part cleanup");
+                    android.os.Process.killProcess(android.os.Process.myPid());
                     break;
                 case DISABLE_TIMEOUT:
                     if (DBG) Log.d(TAG,"CURRENT_STATE=PENDING, MESSAGE = DISABLE_TIMEOUT, isTurningOn=" + isTurningOn + ", isTurningOff=" + isTurningOff);
                     errorLog("Error disabling Bluetooth");
                     mPendingCommandState.setTurningOff(false);
-                    transitionTo(mOnState);
-                    notifyAdapterStateChange(BluetoothAdapter.STATE_ON);
+                    adapterService.ssrcleanupNative(true);
+                    transitionTo(mOffState);
+                    notifyAdapterStateChange(BluetoothAdapter.STATE_OFF);
+                    errorLog("Killing the process to force a restart as part cleanup");
+                    android.os.Process.killProcess(android.os.Process.myPid());
                     break;
                 default:
                     if (DBG) Log.d(TAG,"ERROR: UNEXPECTED MESSAGE: CURRENT_STATE=PENDING, MESSAGE = " + msg.what );
