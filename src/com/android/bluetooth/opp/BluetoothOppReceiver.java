@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2008-2009, Motorola, Inc.
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * All rights reserved.
  *
@@ -44,10 +45,10 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.util.Log;
 import android.widget.Toast;
-import android.os.SystemProperties;
 
 /**
  * Receives and handles: system broadcasts; Intents from other applications;
@@ -56,7 +57,7 @@ import android.os.SystemProperties;
 public class BluetoothOppReceiver extends BroadcastReceiver {
     private static final String TAG = "BluetoothOppReceiver";
     private static final boolean D = Constants.DEBUG;
-    private static final boolean V = Constants.VERBOSE;
+    private static final boolean V = Log.isLoggable(Constants.TAG, Log.VERBOSE) ? true : false;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -90,6 +91,17 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
                     }
                 }
             }
+        } else if (action.equals(BluetoothDevicePicker.ACTION_DEVICE_NOT_SELECTED)) {
+            if (V) Log.v(TAG, "ACTION_DEVICE_NOT_SELECTED");
+            BluetoothOppManager mOppManager = BluetoothOppManager.getInstance(context);
+            mOppManager.cleanUpSendingFileInfo();
+        } else if (action.equals(BluetoothDevice.ACTION_ACL_DISCONNECTED)) {
+            if (V) Log.v(TAG, "Received ACTION_ACL_DISCONNECTED");
+            // Don't forward intent unless device has bluetooth and bluetooth is enabled.
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter != null && adapter.isEnabled()) {
+                context.startService(new Intent(context, BluetoothOppService.class));
+            }
         } else if (action.equals(BluetoothDevicePicker.ACTION_DEVICE_SELECTED)) {
             BluetoothOppManager mOppManager = BluetoothOppManager.getInstance(context);
 
@@ -101,7 +113,7 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
             mOppManager.startTransfer(remoteDevice);
 
             // Display toast message
-            String deviceName = mOppManager.getDeviceName(remoteDevice);
+            String deviceName = remoteDevice.getName();
             String toastMsg;
             int batchSize = mOppManager.getBatchSize();
             if (mOppManager.mMultipleFlag) {
@@ -129,16 +141,8 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
         } else if (action.equals(BluetoothShare.INCOMING_FILE_CONFIRMATION_REQUEST_ACTION)) {
             if (V) Log.v(TAG, "Receiver INCOMING_FILE_NOTIFICATION");
 
-            if (SystemProperties.getBoolean("ro.platform.has.mbxuimode",false)) {
-                Uri uri = intent.getData();
-                Intent in = new Intent(context, BluetoothOppIncomingFileConfirmActivity.class);
-                in.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                in.setDataAndNormalize(uri);
-                context.startActivity(in);
-            }else{
-                Toast.makeText(context, context.getString(R.string.incoming_file_toast_msg),
+            Toast.makeText(context, context.getString(R.string.incoming_file_toast_msg),
                     Toast.LENGTH_SHORT).show();
-            }
 
         } else if (action.equals(Constants.ACTION_OPEN) || action.equals(Constants.ACTION_LIST)) {
             if (V) {
@@ -200,26 +204,38 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
             context.startActivity(in);
         } else if (action.equals(Constants.ACTION_HIDE)) {
             if (V) Log.v(TAG, "Receiver hide for " + intent.getData());
-            Cursor cursor = context.getContentResolver().query(intent.getData(), null, null, null,
-                    null);
+            Cursor cursor;
+            try {
+                cursor = context.getContentResolver().query(intent.getData(), null, null, null,
+                        null);
+            } catch (SQLiteException e) {
+                cursor = null;
+                Log.e(TAG, "SQLite exception: " + e);
+            }
+
             if (cursor != null) {
                 if (cursor.moveToFirst()) {
-                    int statusColumn = cursor.getColumnIndexOrThrow(BluetoothShare.STATUS);
-                    int status = cursor.getInt(statusColumn);
-                    int visibilityColumn = cursor.getColumnIndexOrThrow(BluetoothShare.VISIBILITY);
-                    int visibility = cursor.getInt(visibilityColumn);
-                    int userConfirmationColumn = cursor
-                            .getColumnIndexOrThrow(BluetoothShare.USER_CONFIRMATION);
-                    int userConfirmation = cursor.getInt(userConfirmationColumn);
-                    if (((userConfirmation == BluetoothShare.USER_CONFIRMATION_PENDING))
-                            && visibility == BluetoothShare.VISIBILITY_VISIBLE) {
-                        ContentValues values = new ContentValues();
-                        values.put(BluetoothShare.VISIBILITY, BluetoothShare.VISIBILITY_HIDDEN);
-                        context.getContentResolver().update(intent.getData(), values, null, null);
-                        if (V) Log.v(TAG, "Action_hide received and db updated");
+                    try {
+                        int statusColumn = cursor.getColumnIndexOrThrow(BluetoothShare.STATUS);
+                        int status = cursor.getInt(statusColumn);
+                        int visibilityColumn = cursor.getColumnIndexOrThrow(BluetoothShare.VISIBILITY);
+                        int visibility = cursor.getInt(visibilityColumn);
+                        int userConfirmationColumn = cursor
+                                .getColumnIndexOrThrow(BluetoothShare.USER_CONFIRMATION);
+                        int userConfirmation = cursor.getInt(userConfirmationColumn);
+                        if (((userConfirmation == BluetoothShare.USER_CONFIRMATION_PENDING))
+                                && visibility == BluetoothShare.VISIBILITY_VISIBLE) {
+                            ContentValues values = new ContentValues();
+                            values.put(BluetoothShare.VISIBILITY, BluetoothShare.VISIBILITY_HIDDEN);
+                            context.getContentResolver().update(intent.getData(), values, null, null);
+                            if (V) Log.v(TAG, "Action_hide received and db updated");
                         }
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG, "Invalid share info");
+                    }
                 }
                 cursor.close();
+                cursor = null;
             }
         } else if (action.equals(Constants.ACTION_COMPLETE_HIDE)) {
             if (V) Log.v(TAG, "Receiver ACTION_COMPLETE_HIDE");
@@ -282,6 +298,12 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
                     toastMsg = context.getString(R.string.download_fail_line1);
                 }
             }
+
+            if (Constants.ZERO_LENGTH_FILE) {
+               toastMsg = context.getString(R.string.empty_file_notification_sent, transInfo.mFileName);
+               Constants.ZERO_LENGTH_FILE = false;
+            }
+
             if (V) Log.v(TAG, "Toast msg == " + toastMsg);
             if (toastMsg != null) {
                 Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show();
