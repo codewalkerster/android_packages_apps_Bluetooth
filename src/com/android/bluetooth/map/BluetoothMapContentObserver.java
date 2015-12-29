@@ -63,6 +63,7 @@ import android.telephony.ServiceState;
 import android.telephony.SmsManager;
 import android.telephony.SmsMessage;
 import android.telephony.TelephonyManager;
+import android.util.EventLog;
 import android.util.Log;
 import android.util.Xml;
 import android.os.Looper;
