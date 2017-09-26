@@ -326,7 +326,7 @@ public class BluetoothOppUtility {
         values.put(BluetoothShare.DESTINATION, transInfo.mDestAddr);
 
 	Uri uri = Uri.parse(transInfo.mFileUri);
-        putSendFileInfo(uri, BluetoothOppSendFileInfo.generateFileInfo(context, uri, transInfo.mFileType));
+        putSendFileInfo(uri, BluetoothOppSendFileInfo.generateFileInfo(context, uri, transInfo.mFileType, true));
 
 
         final Uri contentUri = context.getContentResolver().insert(BluetoothShare.CONTENT_URI,
